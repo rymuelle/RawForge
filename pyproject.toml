@@ -1,0 +1,46 @@
+[project]
+name = "rawforge" 
+version = "0.0.1"
+description = "A compute backend/CLI application for using machine learning models on raw images."
+authors = [
+    { name = "Ryan Mueller"},
+]
+readme = "README.md"
+requires-python = ">=3.11" 
+license = { file = "LICENSE" }
+keywords = ["python", "Machine Learning", "Camera Raw"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+    "pidng ~=4.0.9",
+    "numpy >=2.3", 
+    "RawHandler ~=0.0.2",
+    "colour_demosaicing ~=0.2.6",
+    "blended_tiling >=0.0.1.dev7",
+    "requests ~=2.32",
+    "platformdirs ~=4.5",
+    "tqdm ~=4.67",
+    "cryptography ~=46.0",
+]
+
+
+[project.urls]
+"Homepage" = "https://github.com/rymuelle/RawForge"
+"Bug Tracker" = "https://github.com/rymuelle/RawForge/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"] 
+build-backend = "setuptools.build_meta" 
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["RawForge*"]
+
+[project.scripts]
+rawforge = "RawForge.main:main"

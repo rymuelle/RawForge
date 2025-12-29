@@ -1,0 +1,14 @@
+*.DNG
+*.xmp
+*.pyc
+*.toc
+*.dmg
+*.zip
+*.pkg
+*_private_key.pem
+
+*egg-info/*
+.DS_Store
+build
+dist
+mlruns

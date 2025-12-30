@@ -2,6 +2,7 @@ import sys
 import platform
 from  RawForge.application.ModelHandler import ModelHandler 
 import argparse
+# import glob
 
 def main():
     parser = argparse.ArgumentParser(description='A command line utility for processing raw images.')
@@ -18,6 +19,16 @@ def main():
 
     args = parser.parse_args()
 
+    # # Glob handeling
+    # in_files = sorted(glob.glob(args.in_file))
+    # if not in_files:
+    #     raise FileNotFoundError(f"No files match pattern: {args.in_file}")
+    # if len(in_files) > 1:
+    #     if not args.out_path.is_dir():
+    #         raise ValueError(
+    #             "When using glob input, out_file must be a directory."
+    #         )
+    
     handler = ModelHandler()
 
     handler.load_model(args.model)

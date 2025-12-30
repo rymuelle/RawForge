@@ -92,7 +92,7 @@ def simulate_CFA(image, pattern="RGGB", cfa_type="bayer"):
 
 
 
-def to_tiff_dng(uint_img, rh, filepath, ccm1, save_cfa=True, convert_to_cfa=True, use_orig_wb_points=False):
+def to_dng(uint_img, rh, filepath, ccm1, save_cfa=True, convert_to_cfa=True, use_orig_wb_points=False):
     """
     Saves image as a DNG-compatible TIFF with full metadata.
     Works on Windows using tifffile.

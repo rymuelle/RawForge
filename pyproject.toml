@@ -18,7 +18,6 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
-    "pidng ~=4.0.9",
     "numpy >=2.3", 
     "RawHandler ~=0.0.2",
     "colour_demosaicing ~=0.2.6",

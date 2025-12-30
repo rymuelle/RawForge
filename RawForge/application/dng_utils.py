@@ -1,6 +1,4 @@
 import numpy as np
-from pidng.core import RAW2DNG, DNGTags, Tag
-from pidng.defs import *
 import tifffile
 
 def get_ratios(string, rh):
@@ -92,78 +90,6 @@ def simulate_CFA(image, pattern="RGGB", cfa_type="bayer"):
 
     return cfa.sum(axis=2), sparse_mask
 
-def to_dng(uint_img, rh, filepath, ccm1, save_cfa=True, convert_to_cfa=True, use_orig_wb_points=False):
-    width = uint_img.shape[1]
-    height = uint_img.shape[0]
-    bpp = 16 
-
-    t = DNGTags()
-
-    if save_cfa:
-      if convert_to_cfa:
-        cfa, _ = simulate_CFA(uint_img, pattern="RGGB", cfa_type="bayer")
-        uint_img = cfa.astype(np.uint16)
-      t.set(Tag.BitsPerSample, bpp)
-      t.set(Tag.SamplesPerPixel, 1) 
-      t.set(Tag.PhotometricInterpretation, PhotometricInterpretation.Color_Filter_Array)
-      t.set(Tag.CFARepeatPatternDim, [2,2])
-      t.set(Tag.CFAPattern, CFAPattern.RGGB)
-      t.set(Tag.BlackLevelRepeatDim, [2,2])
-
-      # This should not be used except to save testing patches
-      if use_orig_wb_points:
-        bl = rh.core_metadata.black_level_per_channel
-        t.set(Tag.BlackLevel, bl)
-        t.set(Tag.WhiteLevel, rh.core_metadata.white_level)
-      else:
-        t.set(Tag.BlackLevel, [0, 0, 0, 0])
-        t.set(Tag.WhiteLevel, 65535)
-    else:
-      t.set(Tag.BitsPerSample, [bpp, bpp, bpp]) # 3 channels for RGB
-      t.set(Tag.SamplesPerPixel, 3) # 3 for RGB
-      t.set(Tag.PhotometricInterpretation, PhotometricInterpretation.Linear_Raw)
-      t.set(Tag.BlackLevel,[0,0,0])
-      t.set(Tag.WhiteLevel, [65535, 65535, 65535])
-
-    t.set(Tag.ImageWidth, width)
-    t.set(Tag.ImageLength, height)
-    t.set(Tag.PlanarConfiguration, 1) # 1 for chunky (interleaved RGB)
-
-    t.set(Tag.TileWidth, width)
-    t.set(Tag.TileLength, height)
-
-    t.set(Tag.ColorMatrix1, ccm1)
-    t.set(Tag.CalibrationIlluminant1, CalibrationIlluminant.D65)
-    wb = get_as_shot_neutral(rh)
-    t.set(Tag.AsShotNeutral, wb)
-    t.set(Tag.BaselineExposure, [[0,100]])
-
-
-    try:
-      t.set(Tag.Make, rh.full_metadata['Image Make'].values)
-      t.set(Tag.Model, rh.full_metadata['Image Model'].values)
-      t.set(Tag.Orientation, rh.full_metadata['Image Orientation'].values[0])
-      exposures = get_ratios('EXIF ExposureTime', rh)
-      fnumber = get_ratios('EXIF FNumber', rh)
-      ExposureBiasValue = get_ratios('EXIF ExposureBiasValue', rh) 
-      FocalLength = get_ratios('EXIF FocalLength', rh) 
-      t.set(Tag.FocalLength, FocalLength)
-      t.set(Tag.EXIFPhotoLensModel, rh.full_metadata['EXIF LensModel'].values)
-      t.set(Tag.ExposureBiasValue, ExposureBiasValue)
-      t.set(Tag.ExposureTime, exposures)
-      t.set(Tag.FNumber, fnumber)
-      t.set(Tag.PhotographicSensitivity, rh.full_metadata['EXIF ISOSpeedRatings'].values)
-    except:
-      print("Could not save EXIF")
-    t.set(Tag.DNGVersion, DNGVersion.V1_4)
-    t.set(Tag.DNGBackwardVersion, DNGVersion.V1_2)
-    t.set(Tag.PreviewColorSpace, PreviewColorSpace.Adobe_RGB)
-
-    r = RAW2DNG()
-
-    r.options(t, path="", compress=False)
-
-    r.convert(uint_img, filename=filepath)
 
 
 def to_tiff_dng(uint_img, rh, filepath, ccm1, save_cfa=True, convert_to_cfa=True, use_orig_wb_points=False):

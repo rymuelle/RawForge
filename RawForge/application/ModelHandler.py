@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
 from RawHandler.RawHandler import RawHandler
-from RawForge.application.dng_utils import convert_color_matrix, to_dng, to_tiff_dng
+from RawForge.application.dng_utils import convert_color_matrix, to_dng
 from RawForge.application.utils import can_use_gpu
 
 from RawForge.application.MODEL_REGISTRY import MODEL_REGISTRY
@@ -183,6 +183,6 @@ class ModelHandler():
         transformed = denoised @ transform_matrix.T
         uint_img = np.clip(transformed * 2**16-1, 0, 2**16-1).astype(np.uint16)
         ccm1 = convert_color_matrix(CCM)
-        to_tiff_dng(uint_img, self.rh, filename, ccm1, save_cfa=save_cfa, convert_to_cfa=True)
+        to_dng(uint_img, self.rh, filename, ccm1, save_cfa=save_cfa, convert_to_cfa=True)
 
 

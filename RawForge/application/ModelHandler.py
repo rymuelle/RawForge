@@ -105,13 +105,13 @@ class ModelHandler():
             self.model.to(self.device)
         print(f"Using Device {self.device} from {device}")
 
-    def run_inference(self, conditioning, dims=None):
+    def run_inference(self, conditioning, dims=None, inference_kwargs={}):
         """Starts the worker thread"""
         if not self.model or not self.rh:
             print("Model or Image not loaded.")
             return
 
-        worker = InferenceWorker(self.model, self.model_params, self.device, self.rh, conditioning, dims)
+        worker = InferenceWorker(self.model, self.model_params, self.device, self.rh, conditioning, dims, **inference_kwargs)
         img, final_denoised =  worker.run()
 
         return img, final_denoised

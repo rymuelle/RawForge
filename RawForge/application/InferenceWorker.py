@@ -5,7 +5,7 @@ from RawForge.application.postprocessing import match_colors_linear
 from tqdm import tqdm
 
 class InferenceWorker():
-    def __init__(self, model, model_params, device, rh, conditioning, dims, img_size=128, tile_overlap=0.25, batch_size=2):
+    def __init__(self, model, model_params, device, rh, conditioning, dims, tile_size=256, tile_overlap=0.25, batch_size=2, disable_tqdm=False):
         super().__init__()
         self.model = model
         self.model_params = model_params
@@ -13,10 +13,12 @@ class InferenceWorker():
         self.rh = rh
         self.conditioning = conditioning
         self.dims = dims
-        self.img_size = img_size
+        # Quick and dirty hack to force to be even
+        self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.batch_size = batch_size
         self._is_cancelled = False
+        self.disable_tqdm = disable_tqdm
 
     def cancel(self):
         self._is_cancelled = True
@@ -30,7 +32,7 @@ class InferenceWorker():
         tensor_RGB = torch.from_numpy(image_RGB).unsqueeze(0).contiguous()
 
         full_size = [image_RGGB.shape[1], image_RGGB.shape[2]]
-        tile_size = [self.img_size, self.img_size]
+        tile_size = [self.tile_size // 2, self.tile_size // 2]
         overlap = [self.tile_overlap, self.tile_overlap]
 
         # Tiling Setup
@@ -61,7 +63,7 @@ class InferenceWorker():
         # Inference Loop
         with torch.no_grad():
             with torch.autocast(device_type=self.device.type, dtype=autocast_dtype):
-                for i, (batch, batch_rgb) in tqdm(enumerate(zip(batches, batches_rgb))):
+                for i, (batch, batch_rgb) in tqdm(enumerate(zip(batches, batches_rgb)), disable=self.disable_tqdm):
                     if self._is_cancelled: return None, None
                     
                     B = batch.shape[0]
@@ -86,7 +88,7 @@ class InferenceWorker():
     def run(self):
         try:
             img, denoised_img = self._tile_process()
-            
+
             # Post-process blending
             blend_alpha = self.conditioning[1] / 100
             final_denoised = (denoised_img * (1 - blend_alpha)) + (img * blend_alpha)

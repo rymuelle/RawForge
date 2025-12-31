@@ -56,3 +56,23 @@ def match_colors_linear(
     transformed = src * scale_ + bias_
 
     return transformed, scale, bias
+
+
+def scaled_dot_product(x1, x2, eps=1e-6):
+    dot = (x1 * x2).sum(axis=2, keepdims=True)
+    x1_mag = (x1 * x1).sum(axis=2, keepdims=True) ** .5
+    x2_mag = (x2 * x2).sum(axis=2, keepdims=True) ** .5
+    return dot/(x1_mag+x2_mag+eps)
+
+
+def postprocess(img, denoised, lumi_blend=0, chroma_blend=0, eps=1e-6):
+    # Suggested by Jakob Andrén
+    dot = (img * denoised).sum(axis=2, keepdims=True)
+    img_mag = (img * img).sum(axis=2, keepdims=True) ** .5
+    denoised_mag = (denoised * denoised).sum(axis=2, keepdims=True) ** .5
+    # Project denoised along original image vector
+    lumi = dot / (denoised_mag ** 2 + eps) * denoised
+    chroma = img - lumi 
+    output = (1-lumi_blend) * denoised + lumi * (lumi_blend) + chroma_blend * chroma
+
+    return output

@@ -24,7 +24,7 @@ rawforge TreeNetDenoiseHeavy test.CR2 test_heavy.dng --cfa
 
 
 ```bash 
-usage: rawforge [-h] [--conditioning CONDITIONING] [--dims x0 x1 y0 y1] [--cfa] [--device DEVICE] [--disable_tqdm] [--tile_size TILE_SIZE] model in_file out_file
+usage: rawforge [-h] [--conditioning CONDITIONING] [--dims x0 x1 y0 y1] [--cfa] [--device DEVICE] [--disable_tqdm] [--tile_size TILE_SIZE] [--lumi LUMI] [--chroma CHROMA] model in_file out_file
 
 A command line utility for processing raw images.
 
@@ -43,6 +43,8 @@ options:
   --disable_tqdm        Disable the progress bar.
   --tile_size TILE_SIZE
                         Set tile size. (default: 256)
+  --lumi LUMI           Lumi noise (0-1).
+  --chroma CHROMA       Chroma noise (0-1).
 ```
 
 ----

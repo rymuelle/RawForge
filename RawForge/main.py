@@ -1,6 +1,7 @@
 import sys
 import platform
 from  RawForge.application.ModelHandler import ModelHandler 
+from RawForge.application.postprocessing import postprocess
 import argparse
 # import glob
 
@@ -16,6 +17,9 @@ def main():
     parser.add_argument('--device', type=str, help='Set device backend (cuda, cpu, mps).')
     parser.add_argument('--disable_tqdm', action='store_true', help='Disable the progress bar.')
     parser.add_argument('--tile_size', type=int, help='Set tile size. (default: 256)', default=256)
+
+    parser.add_argument('--lumi', type=float, help='Lumi noise (0-1).', default=0)
+    parser.add_argument('--chroma', type=float, help='Chroma noise (0-1).', default=0)
 
     args = parser.parse_args()
 
@@ -45,7 +49,8 @@ def main():
                         "tile_size": args.tile_size}
     img, denoised_image = handler.run_inference(conditioning=conditioning, dims=args.dims, inference_kwargs=inference_kwargs)
 
-    handler.handle_full_image(denoised_image, args.out_file, args.cfa)
+    output = postprocess(img, denoised_image, lumi_blend=args.lumi, chroma_blend=args.chroma, eps=1e-6)
+    handler.handle_full_image(output, args.out_file, args.cfa)
 
 
 if __name__ == '__main__':

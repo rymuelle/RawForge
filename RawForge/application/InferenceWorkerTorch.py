@@ -34,7 +34,17 @@ class InferenceWorkerTorch:
     def cancel(self):
         self._is_cancelled = True
 
-    def _tile_process(self, image_RGB, model_params, progress_callback=None):
+    def _tile_process(self, image_RGB, model_params, rh, progress_callback=None):
+
+        if 'colorspace' in model_params:
+            colorspace = model_params['colorspace']
+            ccm = rh.rgb_colorspace_transform(colorspace=colorspace)
+            print(ccm)
+            inv_ccm = np.linalg.inv(ccm)
+            image_RGB = apply_colorspace_transform(image_RGB, ccm).astype(np.float16)
+            image_RGB = image_RGB.clip(0,1)
+            image_RGB = image_RGB ** .3
+
         # Prepare Data
         full_size = [image_RGB.shape[2], image_RGB.shape[3]]
         tile_size = [self.tile_size, self.tile_size]
@@ -65,7 +75,7 @@ class InferenceWorkerTorch:
 
         cond_tensor = torch.from_numpy(cond_tensor).to(self.device)
         # Determine Dtype
-        dtype_map = {"mps": torch.float16, "cuda": torch.float16, "cpu": torch.bfloat16}
+        dtype_map = {"mps": torch.float16, "cuda": torch.float16, "cpu": torch.float16}
         autocast_dtype = dtype_map.get(self.device.type, torch.float32)
         total_batches = len(batches_rgb)
         # Inference Loop
@@ -80,7 +90,10 @@ class InferenceWorkerTorch:
                     B = batch_rgb.shape[0]
                     # Expand conditioning to match batch size
                     curr_cond = cond_tensor.expand(B, -1)
-                    output = self.model(batch_rgb, curr_cond)
+                    if 'oneinput' in model_params and model_params['oneinput']:
+                        output = self.model(batch_rgb)
+                    else:
+                        output = self.model(batch_rgb, curr_cond)
                     processed_batches.append(output.cpu().numpy())
 
                     if progress_callback:
@@ -88,9 +101,21 @@ class InferenceWorkerTorch:
         # Rebuild
         tiles_out = np.concat(processed_batches, axis=0)
         stitched = tiling_module_rgb.rebuild_with_masks(tiles_out)
-
+        # Change colorspace back
+        if 'colorspace' in model_params:
+            stitched = apply_colorspace_transform(stitched, inv_ccm).astype(np.float16)
+            image_RGB = image_RGB ** (1/.3)
         return image_RGB, stitched
 
     def run(self, model_params, image_RGB):
         img, denoised_img = self._tile_process(image_RGB, model_params)
         return img, denoised_img
+
+
+def apply_colorspace_transform(
+    image,
+    transform,
+):
+    orig_dims = image.shape
+    transformed = (transform @ image.reshape(3, -1)).reshape(orig_dims)
+    return transformed

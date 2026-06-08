@@ -65,7 +65,7 @@ class InferenceWorkerTorch:
 
         cond_tensor = torch.from_numpy(cond_tensor).to(self.device)
         # Determine Dtype
-        dtype_map = {"mps": torch.float16, "cuda": torch.float16, "cpu": torch.bfloat16}
+        dtype_map = {"mps": torch.float16, "cuda": torch.float16, "cpu": torch.float16}
         autocast_dtype = dtype_map.get(self.device.type, torch.float32)
         total_batches = len(batches_rgb)
         # Inference Loop
@@ -80,7 +80,10 @@ class InferenceWorkerTorch:
                     B = batch_rgb.shape[0]
                     # Expand conditioning to match batch size
                     curr_cond = cond_tensor.expand(B, -1)
-                    output = self.model(batch_rgb, curr_cond)
+                    if model_params['conditioning']:
+                        output = self.model(batch_rgb, curr_cond)
+                    else:
+                        output = self.model(batch_rgb)
                     processed_batches.append(output.cpu().numpy())
 
                     if progress_callback:

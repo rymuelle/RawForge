@@ -5,12 +5,14 @@ warnings.filterwarnings("ignore", message=".*Matplotlib.*not available.*")
 import argparse
 from pathlib import Path
 from typing import Optional, List
+import numpy as np
 
-from RawForge.application.postprocessing import postprocess
-from RawForge.application.MODEL_REGISTRY import MODEL_REGISTRY
-from RawForge.application.ImageSaver import ImageSaver
-from RawForge.application.helpers.get_image import get_image
-from RawForge.application.helpers.get_backend import get_backend
+from .application.postprocessing import postprocess
+from .application.MODEL_REGISTRY import MODEL_REGISTRY
+from .application.ImageSaver import ImageSaver
+from .application.helpers.get_image import get_image
+from .application.helpers.get_backend import get_backend
+from .application.helpers.exiftools import copy_with_exiftools
 # import glob
 
 def run_pipeline(
@@ -30,7 +32,8 @@ def run_pipeline(
     device: Optional[str] = None,
     verbose: int = 1,
     disable_tqdm: bool = False,
-    progress_callback = None
+    progress_callback = None,
+    exiftools: bool = True,
 ):    
     ModelHandler, InferenceWorker, runtime = get_backend(use_onnx, verbose)
 
@@ -67,6 +70,16 @@ def run_pipeline(
         )
         _, output_img = worker._tile_process(output_img, handler.model_params, progress_callback=progress_callback)
 
+    def subtract_bl():
+        if primary_model_params["demosaicing"] == "sixchan":
+            if 'subtract_bl' in primary_model_params:
+                if primary_model_params['subtract_bl']: 
+                    return output_img
+            return  output_img - np.mean(rh.rawpy_object.black_level_per_channel)/rh.rawpy_object.white_level
+        return output_img
+    
+    output_img = subtract_bl()
+
     # Postprocess
     output = postprocess(
         image_RGB, output_img,
@@ -77,12 +90,16 @@ def run_pipeline(
     # Save
     saver = ImageSaver(primary_model_params, rh, dims=dims)
     apply_ccm = primary_model_params["demosaicing"] == "rawpy"
+    apply_ccm = primary_model_params["demosaicing"] == "sixchan"
     
     if Path(out_file).suffix == ".tiff":
         saver.to_tiff(output, out_file, apply_ccm=apply_ccm)
     else:
         saver.to_raw(output, out_file, cfa)
-        
+
+    if exiftools:
+        copy_with_exiftools(in_file, out_file, verbose)
+
     if verbose > 0:
         print(f"{out_file} saved!")
 
@@ -148,6 +165,12 @@ def main():
         help="Verbose output. 0:Silent 1:Progress bar 2:Verbose (default: 1)",
         default=1,
     )
+    parser.add_argument(
+        "--disable_exiftools",
+        help = "Do not use exiftools to copy exif information.",
+        action="store_false"
+    )
+
     args = parser.parse_args()
     run_pipeline(
         model_names=args.model,
@@ -165,7 +188,8 @@ def main():
         use_onnx=args.onnx,
         device=args.device,
         verbose=args.verbose,
-        disable_tqdm=args.disable_tqdm
+        disable_tqdm=args.disable_tqdm,
+        exiftools=args.disable_exiftools,
     )
 
 if __name__ == "__main__":

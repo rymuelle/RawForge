@@ -34,6 +34,7 @@ def process_img(
     clip_highlights: bool = False,
     affine: bool = False,
     progress_callback = None,
+    rh = None,
 ):
     ModelHandler, InferenceWorker, runtime = get_backend(use_onnx, verbose)
 
@@ -71,6 +72,10 @@ def process_img(
         lumi_blend=lumi, chroma_blend=chroma,
         eps=1e-6, clip_highlights=clip_highlights, affine=affine,
     )
+    primary_model_params = MODEL_REGISTRY[models[0]]
+    if primary_model_params.get("demosaicing") == "sixchan" and not primary_model_params.get("subtract_bl"):
+            if hasattr(rh, 'rawpy_object') and rh.rawpy_object is not None:
+                output = output - np.mean(rh.rawpy_object.black_level_per_channel) / rh.rawpy_object.white_level
     return output
 
 def run_pipeline(
@@ -101,12 +106,7 @@ def run_pipeline(
     rh, image_RGB, iso = get_image(in_file, primary_model_params, dims=dims)
 
     output = process_img(models, image_RGB, conditioning_str, iso, disable_tqdm, tile_size, tile_overlap, verbose, use_onnx, device, 
-                         lumi, chroma, clip_highlights, affine, progress_callback)
-    demosaicing_type = primary_model_params.get("demosaicing")
-    if demosaicing_type == "sixchan" and primary_model_params.get("subtract_bl"):
-        rawpy_obj = rh.rawpy_object
-        output = output - np.mean(rawpy_obj.black_level_per_channel) / rawpy_obj.white_level
-
+                         lumi, chroma, clip_highlights, affine, progress_callback, rh)
     # Save
     saver = ImageSaver(primary_model_params, rh, dims=dims)
     apply_ccm = primary_model_params["demosaicing"] in ("rawpy", "sixchan")

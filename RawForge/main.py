@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Optional, List
 import numpy as np
+import numpy.typing as npt
 
 from .application.postprocessing import postprocess
 from .application.MODEL_REGISTRY import MODEL_REGISTRY
@@ -15,33 +16,27 @@ from .application.helpers.get_backend import get_backend
 from .application.helpers.exiftools import copy_with_exiftools
 # import glob
 
-def run_pipeline(
-    model_names: str,
-    in_file: str,
-    out_file: str,
+
+
+def process_img(
+    models: list[str],
+    image_RGB:  npt.NDArray[np.float16],
     conditioning_str: Optional[str] = None,
-    dims: Optional[List[int]] = None,
-    cfa: bool = False,
+    iso:  float = 0,
+    disable_tqdm: bool = False,
     tile_size: int = 256,
     tile_overlap: float = 0.25,
+    verbose: int = 1,
+    use_onnx: bool = False,
+    device: Optional[str] = None,
     lumi: float = 0.0,
     chroma: float = 0.0,
     clip_highlights: bool = False,
     affine: bool = False,
-    use_onnx: bool = False,
-    device: Optional[str] = None,
-    verbose: int = 1,
-    disable_tqdm: bool = False,
     progress_callback = None,
-    exiftools: bool = True,
-):    
+):
     ModelHandler, InferenceWorker, runtime = get_backend(use_onnx, verbose)
 
-    # Initialization
-    models = model_names.split(",")
-    primary_model_params = MODEL_REGISTRY[models[0]]
-
-    rh, image_RGB, iso = get_image(in_file, primary_model_params, dims=dims)
     # Formatting conditioning
     if not conditioning_str:
         conditioning = [iso, 0]
@@ -70,22 +65,51 @@ def run_pipeline(
         )
         _, output_img = worker._tile_process(output_img, handler.model_params, progress_callback=progress_callback)
 
-    def subtract_bl():
-        if primary_model_params["demosaicing"] == "sixchan":
-            if 'subtract_bl' in primary_model_params:
-                if primary_model_params['subtract_bl']: 
-                    return output_img
-            return  output_img - np.mean(rh.rawpy_object.black_level_per_channel)/rh.rawpy_object.white_level
-        return output_img
-    
-    output_img = subtract_bl()
-
     # Postprocess
     output = postprocess(
         image_RGB, output_img,
         lumi_blend=lumi, chroma_blend=chroma,
         eps=1e-6, clip_highlights=clip_highlights, affine=affine,
     )
+    return output
+
+def run_pipeline(
+    model_names: str,
+    in_file: str,
+    out_file: str,
+    conditioning_str: Optional[str] = None,
+    dims: Optional[List[int]] = None,
+    cfa: bool = False,
+    tile_size: int = 256,
+    tile_overlap: float = 0.25,
+    lumi: float = 0.0,
+    chroma: float = 0.0,
+    clip_highlights: bool = False,
+    affine: bool = False,
+    use_onnx: bool = False,
+    device: Optional[str] = None,
+    verbose: int = 1,
+    disable_tqdm: bool = False,
+    progress_callback = None,
+    exiftools: bool = True,
+):    
+
+    # Initialization
+    models = model_names.split(",")
+    primary_model_params = MODEL_REGISTRY[models[0]]
+
+    rh, image_RGB, iso = get_image(in_file, primary_model_params, dims=dims)
+
+    output = process_img(models, image_RGB, conditioning_str, iso, disable_tqdm, tile_size, tile_overlap, verbose, use_onnx, device, 
+                         lumi, chroma, clip_highlights, affine, progress_callback)
+    def subtract_bl():
+        if primary_model_params["demosaicing"] == "sixchan":
+            if 'subtract_bl' in primary_model_params:
+                if primary_model_params['subtract_bl']: 
+                    return output
+            return  output - np.mean(rh.rawpy_object.black_level_per_channel)/rh.rawpy_object.white_level
+        return output
+    output = subtract_bl()
 
     # Save
     saver = ImageSaver(primary_model_params, rh, dims=dims)

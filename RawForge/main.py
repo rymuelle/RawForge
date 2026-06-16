@@ -19,7 +19,7 @@ from .application.helpers.exiftools import copy_with_exiftools
 
 
 def process_img(
-    models: list[str],
+    models: List[str],
     image_RGB:  npt.NDArray[np.float16],
     conditioning_str: Optional[str] = None,
     iso:  float = 0,
@@ -102,19 +102,14 @@ def run_pipeline(
 
     output = process_img(models, image_RGB, conditioning_str, iso, disable_tqdm, tile_size, tile_overlap, verbose, use_onnx, device, 
                          lumi, chroma, clip_highlights, affine, progress_callback)
-    def subtract_bl():
-        if primary_model_params["demosaicing"] == "sixchan":
-            if 'subtract_bl' in primary_model_params:
-                if primary_model_params['subtract_bl']: 
-                    return output
-            return  output - np.mean(rh.rawpy_object.black_level_per_channel)/rh.rawpy_object.white_level
-        return output
-    output = subtract_bl()
+    demosaicing_type = primary_model_params.get("demosaicing")
+    if demosaicing_type == "sixchan" and primary_model_params.get("subtract_bl"):
+        rawpy_obj = rh.rawpy_object
+        output = output - np.mean(rawpy_obj.black_level_per_channel) / rawpy_obj.white_level
 
     # Save
     saver = ImageSaver(primary_model_params, rh, dims=dims)
-    apply_ccm = primary_model_params["demosaicing"] == "rawpy"
-    apply_ccm = primary_model_params["demosaicing"] == "sixchan"
+    apply_ccm = primary_model_params["demosaicing"] in ("rawpy", "sixchan")
     
     if Path(out_file).suffix == ".tiff":
         saver.to_tiff(output, out_file, apply_ccm=apply_ccm)

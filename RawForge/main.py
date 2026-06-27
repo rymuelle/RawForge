@@ -55,12 +55,15 @@ def process_img(
     for model_name in models:
         handler = ModelHandler(verbose=verbose)
         handler.load_model(model_name)
+
+        # Use default values in the model registry unless user specified
+        handler.model_params["tile_overlap"] = tile_overlap if tile_overlap is not None else handler.model_params["tile_overlap"]
+        handler.model_params["tile_size"] = tile_size if tile_size is not None else handler.model_params["tile_size"]
         
         if device and runtime == "Torch":
             handler.set_device(device)
         if runtime == "Torch":
             inference_kwargs["device"] = handler.device
-            
         worker = InferenceWorker(
             handler.model, handler.model_params, conditioning, **inference_kwargs
         )
@@ -98,7 +101,6 @@ def run_pipeline(
     progress_callback = None,
     exiftools: bool = True,
 ):    
-
     # Initialization
     models = model_names.split(",")
     primary_model_params = MODEL_REGISTRY[models[0]]
@@ -152,13 +154,13 @@ def main():
         "--disable_tqdm", action="store_true", help="Disable the progress bar."
     )
     parser.add_argument(
-        "--tile_size", type=int, help="Set tile size. (default: 256)", default=256
+        "--tile_size", type=int, help="Set tile size.", default=None
     )
     parser.add_argument(
         "--tile_overlap",
         type=float,
-        help="Set tile overlap. (default: 0.25)",
-        default=0.25,
+        help="Set tile overlap.",
+        default=None,
     )
 
     parser.add_argument("--lumi", type=float, help="Lumi noise (0-1).", default=0)

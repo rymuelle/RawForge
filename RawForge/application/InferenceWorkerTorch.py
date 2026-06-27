@@ -11,8 +11,6 @@ class InferenceWorkerTorch:
         model_params,
         conditioning,
         device="cpu",
-        tile_size=512,
-        tile_overlap=0.25,
         batch_size=2,
         disable_tqdm=False,
     ):
@@ -20,11 +18,9 @@ class InferenceWorkerTorch:
         self.model = model
         self.model_params = model_params
         self.conditioning = conditioning
-        self.tile_size = tile_size
         self.device = device
-        if "tile_size" in model_params:
-            self.tile_size = model_params["tile_size"]
-        self.tile_overlap = tile_overlap
+        self.tile_size =   model_params["tile_size"] 
+        self.tile_overlap =   model_params["tile_overlap"]
         self.batch_size = batch_size
         if "batch_size" in model_params:
             self.batch_size = model_params["batch_size"]
@@ -84,7 +80,7 @@ class InferenceWorkerTorch:
                         output = self.model(batch_rgb, curr_cond)
                     else:
                         output = self.model(batch_rgb)
-                    processed_batches.append(output.cpu().numpy())
+                    processed_batches.append(output.cpu().numpy().clip(0,1))
 
                     if progress_callback:
                         progress_callback((i + 1) / total_batches)

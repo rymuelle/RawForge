@@ -737,7 +737,7 @@ MODEL_REGISTRY = {
         "subtract_bl": True,
         "image_clip": True,
     },
-        "DemoRestormerDiT_to_demo_cont_cont_768_RawNIND": {
+        "JDD": {
         "url": None,
         "filename": None,
         "torchurl": "https://github.com/rymuelle/RawForge/releases/download/JDD_v1.0.0/DemoRestormerDiT_to_demo_cont_cont_768_RawNIND.pt",

@@ -28,6 +28,8 @@ class InferenceWorker:
     def _build_conditioning(self):
         cond = np.array([self.conditioning], dtype=np.float32)
 
+        if "max_iso" in self.model_params:
+            cond[:, 0] = min(cond[:, 0], self.model_params["max_iso"])
         cond[:, 0] /= 6400.0
         cond[:, 1] = 0.0
         cond = cond[:, :1].astype(np.float16)

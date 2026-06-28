@@ -6,6 +6,7 @@ MODEL_REGISTRY = {
         "torchfilename": "ShadowWeightedL1.pt",
         "max_iso": 65535,
         "demosaicing": "Malvar2004",
+        "conditioning": True,
     },
     "TreeNetDenoiseLight": {
         "url": "    https://github.com/rymuelle/RawForge/releases/download/onnx_v1.0.0/ShadowWeightedL1_light.onnx",
@@ -41,6 +42,7 @@ MODEL_REGISTRY = {
         "torchurl": "https://github.com/rymuelle/RawRefinery/releases/download/v1.2.1-alpha/realblur_gamma_140.pt",
         "torchfilename": "realblur_gamma_140.pt",
         "demosaicing": "Malvar2004",
+        "conditioning": True,
     },
     "DeepSharpen": {
         "url": "https://github.com/rymuelle/RawForge/releases/download/onnx_v1.0.0/Deblur_deep_24.onnx",
@@ -48,6 +50,7 @@ MODEL_REGISTRY = {
         "torchurl": "https://github.com/rymuelle/RawRefinery/releases/download/v1.2.1-alpha/Deblur_deep_24.pt",
         "torchfilename": "Deblur_deep_24.pt",
         "demosaicing": "Malvar2004",
+        "conditioning": True,
     },
     "TreeNetDenoiseXTrans": {
         "url": "https://github.com/rymuelle/RawForge/releases/download/onnx_v1.0.0/xtrans_fixed_exposure_no_conditioning_400.onnx",
@@ -779,6 +782,4 @@ for model_config in MODEL_REGISTRY.values():
     model_config.setdefault("tile_size", 256)
     model_config.setdefault("tile_overlap", 0.25)
     model_config.setdefault("batch_size", 1)
-
-
-# rawforgeonnx DemoRestormerDiT_to_demo_cont_cont_768_RawNIND 20240111_1614.ARW torch_test.DNG --cfa --verbose 2
+    model_config.setdefault("conditioning", False)

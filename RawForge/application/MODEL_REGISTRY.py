@@ -778,6 +778,7 @@ MODEL_REGISTRY = {
 for model_config in MODEL_REGISTRY.values():
     model_config.setdefault("tile_size", 256)
     model_config.setdefault("tile_overlap", 0.25)
+    model_config.setdefault("batch_size", 1)
 
 
 # rawforgeonnx DemoRestormerDiT_to_demo_cont_cont_768_RawNIND 20240111_1614.ARW torch_test.DNG --cfa --verbose 2

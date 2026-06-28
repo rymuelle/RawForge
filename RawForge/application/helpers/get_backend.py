@@ -16,12 +16,12 @@ def get_backend(use_onnx: bool, verbose: int):
         raise RuntimeError("Must have either ONNX or Torch backends installed.")
 
     if (onnx_available and not torch_available) or use_onnx:
-        from RawForge.application.InferenceWorker import InferenceWorker
+        from RawForge.application.ONNXBackend import ONNXBackend as Backend
         from RawForge.application.ModelHandler import ModelHandler
         if verbose > 1: print("Using ONNX runtime")
-        return ModelHandler, InferenceWorker, "ONNX"
+        return ModelHandler, Backend, "ONNX"
     else:
-        from RawForge.application.InferenceWorkerTorch import InferenceWorkerTorch as InferenceWorker
+        from RawForge.application.TorchBackend import TorchBackend as Backend
         from RawForge.application.ModelHandlerTorch import ModelHandlerTorch as ModelHandler
         if verbose > 1: print("Using Torch runtime")
-        return ModelHandler, InferenceWorker, "Torch"
+        return ModelHandler, Backend, "Torch"

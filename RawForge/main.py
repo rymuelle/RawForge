@@ -14,6 +14,7 @@ from .application.ImageSaver import ImageSaver
 from .application.helpers.get_image import get_image
 from .application.helpers.get_backend import get_backend
 from .application.helpers.exiftools import copy_with_exiftools
+from .application.InferenceWorkerTorch import InferenceWorker
 # import glob
 
 
@@ -26,6 +27,7 @@ def process_img(
     disable_tqdm: bool = False,
     tile_size: int = 256,
     tile_overlap: float = 0.25,
+    batch_size: float = 1, 
     verbose: int = 1,
     use_onnx: bool = False,
     device: Optional[str] = None,
@@ -36,7 +38,7 @@ def process_img(
     progress_callback = None,
     rh = None,
 ):
-    ModelHandler, InferenceWorker, runtime = get_backend(use_onnx, verbose)
+    ModelHandler, Backend, runtime = get_backend(use_onnx, verbose)
 
     # Formatting conditioning
     if not conditioning_str:
@@ -44,11 +46,6 @@ def process_img(
     else:
         conditioning = [int(x) for x in conditioning_str.split(",")]
 
-    inference_kwargs = {
-        "disable_tqdm": disable_tqdm or (verbose == 0),
-        "tile_size": tile_size,
-        "tile_overlap": tile_overlap,
-    }
 
     # Processing Loop
     output_img = image_RGB
@@ -59,15 +56,27 @@ def process_img(
         # Use default values in the model registry unless user specified
         handler.model_params["tile_overlap"] = tile_overlap if tile_overlap is not None else handler.model_params["tile_overlap"]
         handler.model_params["tile_size"] = tile_size if tile_size is not None else handler.model_params["tile_size"]
-        
-        if device and runtime == "Torch":
-            handler.set_device(device)
+        handler.model_params["batch_size"] = batch_size if batch_size is not None else handler.model_params["batch_size"]
         if runtime == "Torch":
-            inference_kwargs["device"] = handler.device
+            if device:
+                handler.set_device(device)
+            backend = Backend(
+                handler.model,
+                handler.model_params,
+                handler.device,
+            )
+        else:
+            backend = Backend(handler.model)
+        # worker = InferenceWorker(
+        #     handler.model, handler.model_params, conditioning, **inference_kwargs
+        # )
         worker = InferenceWorker(
-            handler.model, handler.model_params, conditioning, **inference_kwargs
+            backend,
+            handler.model_params,
+            conditioning,
+            disable_tqdm or (verbose == 0),
         )
-        _, output_img = worker._tile_process(output_img, handler.model_params, progress_callback=progress_callback)
+        _, output_img = worker.run(output_img, progress_callback=progress_callback)
 
     # Postprocess
     output = postprocess(
@@ -90,6 +99,7 @@ def run_pipeline(
     cfa: bool = False,
     tile_size: int = 256,
     tile_overlap: float = 0.25,
+    batch_size: float = 1, 
     lumi: float = 0.0,
     chroma: float = 0.0,
     clip_highlights: bool = False,
@@ -107,7 +117,7 @@ def run_pipeline(
 
     rh, image_RGB, iso = get_image(in_file, primary_model_params, dims=dims)
 
-    output = process_img(models, image_RGB, conditioning_str, iso, disable_tqdm, tile_size, tile_overlap, verbose, use_onnx, device, 
+    output = process_img(models, image_RGB, conditioning_str, iso, disable_tqdm, tile_size, tile_overlap, batch_size, verbose, use_onnx, device, 
                          lumi, chroma, clip_highlights, affine, progress_callback, rh)
     # Save
     saver = ImageSaver(primary_model_params, rh, dims=dims)
@@ -162,6 +172,9 @@ def main():
         help="Set tile overlap.",
         default=None,
     )
+    parser.add_argument(
+        "--batch_size", type=int, help="Set batch size.", default=None
+    )
 
     parser.add_argument("--lumi", type=float, help="Lumi noise (0-1).", default=0)
     parser.add_argument("--chroma", type=float, help="Chroma noise (0-1).", default=0)
@@ -202,6 +215,7 @@ def main():
         cfa=args.cfa,
         tile_size=args.tile_size,
         tile_overlap=args.tile_overlap,
+        batch_size=args.batch_size,
         lumi=args.lumi,
         chroma=args.chroma,
         clip_highlights=args.clip_highlights,

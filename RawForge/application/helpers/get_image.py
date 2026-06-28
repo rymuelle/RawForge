@@ -5,7 +5,6 @@ from RawHandler.RawHandlerRawpy import RawHandlerRawpy
 
 
 def load_rh(path, demosaicing):
-    print(path)
     """Loads the raw file handler"""
     if demosaicing == "rawpy":
         rh = RawHandlerRawpy(path)

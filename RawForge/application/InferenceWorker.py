@@ -6,87 +6,77 @@ from tqdm import tqdm
 class InferenceWorker:
     def __init__(
         self,
-        model,
+        backend,
         model_params,
         conditioning,
-        tile_size=512,
-        tile_overlap=0.25,
-        batch_size=2,
         disable_tqdm=False,
     ):
-        super().__init__()
-        self.model = model
+        self.backend = backend
         self.model_params = model_params
         self.conditioning = conditioning
-        self.tile_size = tile_size
-        if "tile_size" in model_params:
-            self.tile_size = model_params["tile_size"]
-        self.tile_overlap = tile_overlap
-        self.batch_size = batch_size
-        if "batch_size" in model_params:
-            self.batch_size = model_params["batch_size"]
-        self._is_cancelled = False
+
+        self.tile_size = model_params.get("tile_size", 256)
+        self.tile_overlap = model_params.get("tile_overlap", 0.25)
+        self.batch_size = model_params.get("batch_size", 2)
+
         self.disable_tqdm = disable_tqdm
+        self._is_cancelled = False
 
     def cancel(self):
         self._is_cancelled = True
 
-    def _tile_process(self, image_RGB, model_params, progress_callback=None):
-        # Prepare Data
-        full_size = [image_RGB.shape[2], image_RGB.shape[3]]
-        tile_size = [self.tile_size, self.tile_size]
-        overlap = [self.tile_overlap, self.tile_overlap]
-        # Tiling Setup
-        tiling_module_rgb = TilingModule(
-            tile_size=[s for s in tile_size],
-            tile_overlap=overlap,
-            base_size=[s for s in full_size],
+    def _build_conditioning(self):
+        cond = np.array([self.conditioning], dtype=np.float32)
+
+        cond[:, 0] /= 6400.0
+        cond[:, 1] = 0.0
+        cond = cond[:, :1].astype(np.float16)
+
+        if "cond_scale" in self.model_params:
+            cond *= cond * self.model_params["cond_scale"]
+
+        return self.backend.prepare_conditioning(cond)
+
+    def run(self, image_RGB, progress_callback=None):
+
+        full_size = image_RGB.shape[2:]
+
+        tiler = TilingModule(
+            tile_size=[self.tile_size] * 2,
+            tile_overlap=[self.tile_overlap] * 2,
+            base_size=list(full_size),
         )
 
-        tiles_rgb = tiling_module_rgb.split_into_tiles(image_RGB)
+        tiles = tiler.split_into_tiles(image_RGB)
 
-        batches_rgb = [
-            tiles_rgb[i : i + self.batch_size]
-            for i in range(0, len(tiles_rgb), self.batch_size)
+        batches = [
+            tiles[i:i+self.batch_size]
+            for i in range(0, len(tiles), self.batch_size)
         ]
-        # Conditioning Setup
-        cond_tensor = np.array([self.conditioning]).astype(np.float32)
-        cond_tensor[:, 0] /= 6400.0
-        cond_tensor[:, 1] = 0.0
-        cond_tensor = cond_tensor[:, 0:1]
-        cond_tensor = cond_tensor.astype(np.float16)
-        if "cond_scale" in model_params:
-            cond_tensor *= cond_tensor * model_params["cond_scale"]
 
-        processed_batches = []
+        cond = self._build_conditioning()
 
-        total_batches = len(batches_rgb)
-        # Inference Loop
-        for i, (batch_rgb) in tqdm(enumerate(batches_rgb), disable=self.disable_tqdm):
+        outputs = []
+
+        for i, batch in tqdm(
+            enumerate(batches),
+            total=len(batches),
+            disable=self.disable_tqdm,
+        ):
+
             if self._is_cancelled:
                 return None, None
 
-            B = batch_rgb.shape[0]
-            # Expand conditioning to match batch size
-            curr_cond = np.broadcast_to(cond_tensor, (B, cond_tensor.shape[-1])).astype(
-                np.float16
+            outputs.append(
+                self.backend.infer(batch, cond)
             )
-            payload = {"input": batch_rgb, "cond": curr_cond}
-            # Filter based on inputs
-            model_inputs = {i.name for i in self.model.get_inputs()}
-            filtered_inputs = {k: v for k, v in payload.items() if k in model_inputs}
-            output = self.model.run(["output"], filtered_inputs)
 
-            processed_batches.append(output[0])
             if progress_callback:
-                progress_callback((i + 1) / total_batches)
+                progress_callback((i + 1) / len(batches))
 
-        # Rebuild
-        tiles_out = np.concat(processed_batches, axis=0)
-        stitched = tiling_module_rgb.rebuild_with_masks(tiles_out)
+        stitched = tiler.rebuild_with_masks(
+            np.concatenate(outputs, axis=0)
+        )
 
         return image_RGB, stitched
-
-    def run(self, model_params, image_RGB):
-        img, denoised_img = self._tile_process(image_RGB, model_params)
-        return img, denoised_img
+    

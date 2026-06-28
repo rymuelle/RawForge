@@ -14,7 +14,7 @@ from .application.ImageSaver import ImageSaver
 from .application.helpers.get_image import get_image
 from .application.helpers.get_backend import get_backend
 from .application.helpers.exiftools import copy_with_exiftools
-from .application.InferenceWorkerTorch import InferenceWorker
+from .application.InferenceWorker import InferenceWorker
 # import glob
 
 

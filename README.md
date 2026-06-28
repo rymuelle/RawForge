@@ -21,26 +21,26 @@ pip install rawforge
 ### NVIDIA: For cuda (tested, must have CUDA installed):
 
 ```bash
-pip install rawforgeonnx[cuda]
+pip install rawforge[cuda]
 ```
 
 ### AMD and NVIDIA on Windows:
 
 ```bash
-pip install rawforgeonnx[directml]
+pip install rawforge[directml]
 ```
 
 
 ### All others, including M1+ Macs (CoreML)
 
 ```bash
-pip install rawforgeonnx[cpu]
+pip install rawforge[cpu]
 ```
 
 ### For web:
 
 ```bash
-pip install rawforgeonnx[web]
+pip install rawforge[web]
 ```
 
 Useage is the same, but use the CLI "rawforgeonnx".

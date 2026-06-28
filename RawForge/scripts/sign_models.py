@@ -1,7 +1,7 @@
-import os
 from pathlib import Path
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+
 
 def main():
     directory = input("Enter directory containing files to sign: ").strip()
@@ -39,8 +39,9 @@ def main():
 
     print("\nDone!")
 
+
 if __name__ == "__main__":
     main()
 
-#/Users/ryanmueller/Library/Application Support/RawRefinery
-#/Users/ryanmueller/models
+# /Users/ryanmueller/Library/Application Support/RawRefinery
+# /Users/ryanmueller/models

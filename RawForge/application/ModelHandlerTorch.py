@@ -1,5 +1,4 @@
-import onnxruntime as ort
-import os
+import torch
 from pathlib import Path
 from platformdirs import user_data_dir
 import requests
@@ -7,7 +6,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
 from RawForge.application.MODEL_REGISTRY import MODEL_REGISTRY
-from RawForge.application.helpers.utils import get_best_providers
+from RawForge.application.helpers.torchutils import can_use_gpu
 
 key_string = """-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA8iRGMPqFIFVF0TM/AbMI
@@ -25,7 +24,7 @@ ehXoYFsJReNmD5KNgRtmXbsCUJ+D8v7BVYNGl1UgebmQnMdMWyiU/3l1Uuy8HS3L
 -----END PUBLIC KEY-----"""
 
 
-class ModelHandler:
+class ModelHandlerTorch:
     """
     Manages the LifeCycle of the Model, the RawHandler, and the Worker Thread.
     """
@@ -34,13 +33,19 @@ class ModelHandler:
         super().__init__()
         self.verbose = verbose
         self.model = None
-        app_name = "RawForge"
-        self.data_dir = Path(user_data_dir(app_name))
-        self.cache_dir = Path(
-            os.path.expanduser(f"{self.data_dir}/model_cache")
-        ).resolve()
         # Manage devices
-        self.providers = get_best_providers(cache_dir=self.cache_dir)
+        devices = {
+            "cuda": can_use_gpu(),
+            "mps": torch.backends.mps.is_available(),
+            "cpu": lambda: True,
+        }
+        self.devices = [d for d, is_available in devices.items() if is_available]
+        self.set_device(self.devices[0])
+
+        self.filename = None
+        self.start_time = None
+        self.model_params = {}
+
         self.pub = serialization.load_pem_public_key(key_string.encode("utf-8"))
 
     def load_model(self, model_key):
@@ -49,16 +54,19 @@ class ModelHandler:
             if self.verbose > 0:
                 print(f"Model {model_key} not found in registry.")
             return
+
         conf = MODEL_REGISTRY[model_key]
         self.model_params = conf
-        model_path = self.data_dir / conf["filename"]
+        app_name = "RawForge"
+        data_dir = Path(user_data_dir(app_name))
+        model_path = data_dir / conf["torchfilename"]
 
         # Handle Download
         if not model_path.is_file():
-            if conf["url"]:
+            if conf["torchurl"]:
                 if self.verbose > 0:
                     print(f"Downloading {model_key}...")
-                if not self._download_file(conf["url"], model_path):
+                if not self._download_file(conf["torchurl"], model_path):
                     if self.verbose > 0:
                         print("Failed to download model.")
                     return
@@ -75,15 +83,17 @@ class ModelHandler:
                 model_path, model_path.with_suffix(f"{model_path.suffix}.sig")
             )
 
-            session = ort.InferenceSession(
-                model_path,
-                providers=self.providers,
-            )
-            if self.verbose > 1:
-                print("Loaded!")
-            self.model = session
+            loaded = torch.jit.load(model_path, map_location="cpu")
+            self.model = loaded.eval().to(self.device)
         except Exception as e:
             print(f"Failed to load model: {e}")
+
+    def set_device(self, device):
+        self.device = torch.device(device)
+        if self.model:
+            self.model.to(self.device)
+        if self.verbose > 1:
+            print(f"Using Device {self.device} from {device}")
 
     def _verify_model(self, dest_path, sig_path):
         try:

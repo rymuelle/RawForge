@@ -1,87 +1,99 @@
-import torch
+import numpy as np
+from RawForge.application.helpers.censored_fit import censored_linear_fit_twosided
+
 
 def match_colors_linear(
-    src: torch.Tensor, 
-    tgt: torch.Tensor, 
-    sample_fraction: float = 0.05
+    src: np.ndarray,
+    tgt: np.ndarray,
+    sample_fraction: float = 0.05,
+    censored_fit: bool = True,
 ):
     """
-    Fit per-channel affine color transforms:
-        tgt ≈ scale * src + bias
-
-    Args:
-        src: [B, C, H, W] source tensor
-        tgt: [B, C, H, W] target tensor
-        sample_fraction: fraction of pixels to use for fitting
-
-    Returns:
-        transformed_src: source after color matching
-        scale: [B, C]
-        bias:  [B, C]
+    Fit per-channel affine color transforms using NumPy.
+    src/tgt: [B, C, H, W]
     """
-
     B, C, H, W = src.shape
-    device = src.device
 
-    # Flatten spatial dims
-    src_flat = src.view(B, C, -1)
-    tgt_flat = tgt.view(B, C, -1)
+    # Flatten spatial dims: [B, C, H*W]
+    src_flat = src.reshape(B, C, -1)
+    tgt_flat = tgt.reshape(B, C, -1)
 
     # Sample subset of pixels
     N = src_flat.shape[-1]
     k = max(64, int(N * sample_fraction))
 
-    idx = torch.randint(0, N, (k,), device=device)
+    # Generate random indices
+    idx = np.random.randint(0, N, size=(k,))
 
     src_s = src_flat[..., idx]  # [B, C, k]
     tgt_s = tgt_flat[..., idx]
 
     # Compute scale and bias using least squares
-    # scale = cov(src, tgt) / var(src)
-    src_mean = src_s.mean(-1, keepdim=True)
-    tgt_mean = tgt_s.mean(-1, keepdim=True)
+    src_mean = src_s.mean(axis=-1, keepdims=True)
+    tgt_mean = tgt_s.mean(axis=-1, keepdims=True)
 
     src_centered = src_s - src_mean
     tgt_centered = tgt_s - tgt_mean
 
-    var_src = (src_centered ** 2).mean(-1)
-    cov = (src_centered * tgt_centered).mean(-1)
+    var_src = (src_centered**2).mean(axis=-1)
+    cov = (src_centered * tgt_centered).mean(axis=-1)
 
-    scale = cov / (var_src + 1e-8)            # [B, C]
+    scale = cov / (var_src + 1e-8)  # [B, C]
+    # Squeeze the mean to [B, C] for bias calculation
     bias = tgt_mean.squeeze(-1) - scale * src_mean.squeeze(-1)
 
-    # Apply correction
-    scale_ = scale.view(B, C, 1, 1)
-    bias_ = bias.view(B, C, 1, 1)
+    # Apply correction: reshape for broadcasting to [B, C, H, W]
+    scale_ = scale[:, :, np.newaxis, np.newaxis]
+    bias_ = bias[:, :, np.newaxis, np.newaxis]
     transformed = src * scale_ + bias_
+
+    if censored_fit:
+        a, b, sigma = censored_linear_fit_twosided(
+            tgt_s.astype(np.float32()), src_s.astype(np.float32())
+        )
+        transformed = a + b * transformed
 
     return transformed, scale, bias
 
 
 def scaled_dot_product(x1, x2, eps=1e-6):
+    # Sum along axis 2 (C if input is B, H, C)
     dot = (x1 * x2).sum(axis=2, keepdims=True)
-    x1_mag = (x1 * x1).sum(axis=2, keepdims=True) ** .5
-    x2_mag = (x2 * x2).sum(axis=2, keepdims=True) ** .5
-    return dot/(x1_mag+x2_mag+eps)
+    x1_mag = np.sqrt((x1 * x1).sum(axis=2, keepdims=True))
+    x2_mag = np.sqrt((x2 * x2).sum(axis=2, keepdims=True))
+    return dot / (x1_mag + x2_mag + eps)
 
 
-def postprocess(img, denoised, lumi_blend=0, chroma_blend=0, eps=1e-6,
-                clip_highlights=False):
-    # Suggested by Jakob Andrén
-    dot = (img * denoised).sum(axis=2, keepdims=True)
-    img_mag = (img * img).sum(axis=2, keepdims=True) ** .5
-    denoised_mag = (denoised * denoised).sum(axis=2, keepdims=True) ** .5
-    # Project denoised along original image vector
-    lumi = dot / (denoised_mag ** 2 + eps) * denoised
-    chroma = img - lumi 
-    output = (1-lumi_blend) * denoised + lumi * (lumi_blend) + chroma_blend * chroma
+def postprocess(
+    img,
+    denoised,
+    lumi_blend=0,
+    chroma_blend=0,
+    eps=1e-6,
+    clip_highlights=False,
+    affine=False,
+):
+    if affine:
+        denoised, _, _ = match_colors_linear(denoised, img)
+
+
+    if lumi_blend > 0:
+        dot = (img * denoised).sum(axis=1, keepdims=True)
+        denoised_mag = (denoised * denoised).sum(axis=1, keepdims=True) ** 0.5
+        # Project denoised along original image vector
+        lumi = dot / (denoised_mag**2 + eps) * denoised
+        chroma = img - lumi
+        denoised = (1 - lumi_blend) * denoised + lumi * (lumi_blend) + chroma_blend * chroma
+    
 
     if clip_highlights:
-        output = clip_highlights_func(img, output)
+        denoised = clip_highlights_func(img, denoised)
 
-    return output
+    return denoised
+
 
 def clip_highlights_func(img, denoised):
-   mask = img == 1
-   denoised[mask] = 1
-   return denoised
+    out = np.copy(denoised)
+    mask = img == 1
+    out[mask] = 1
+    return out

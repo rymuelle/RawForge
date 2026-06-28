@@ -1,5 +1,6 @@
 import torch
 
+
 def can_use_gpu():
     if not torch.cuda.is_available():
         return False

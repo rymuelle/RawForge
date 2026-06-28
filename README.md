@@ -50,7 +50,6 @@ Useage is the same, but use the CLI "rawforgeonnx".
 rawforgeonnx TreeNetDenoiseHeavy test.CR2 test_heavy.dng --cfa 
 ```
 
-
 ---
 ## Example command line syntax:
 
@@ -82,6 +81,9 @@ options:
   --lumi LUMI           Lumi noise (0-1).
   --chroma CHROMA       Chroma noise (0-1).
 ```
+
+
+
 
 ----
 

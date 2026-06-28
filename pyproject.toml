@@ -52,5 +52,5 @@ where = ["."]
 include = ["RawForge*"]
 
 [project.scripts]
-rawforgeonnx = "RawForge.main:main"
+rawforge = "RawForge.main:main"
 rawforgeserver = "RawForge.sidecar:main"
